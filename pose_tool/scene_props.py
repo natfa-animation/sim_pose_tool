@@ -11,6 +11,19 @@ from bpy.props import (  # type: ignore[import-not-found]
 from .constants import DEFAULT_PRESETS_PATH
 
 
+def _sim_pt_preset_items(self, context):
+    try:
+        scene = context.scene if context else None
+        if not scene:
+            return []
+        presets_path = getattr(scene, "sim_pt_presets_path", None)
+        if not presets_path or not os.path.isdir(presets_path):
+            return []
+        return [(f, f, "") for f in os.listdir(presets_path) if f.endswith('.json')]
+    except Exception:
+        return []
+
+
 def register_properties():
     bpy.types.Scene.sim_pt_use_rotation = BoolProperty(name="Use Rotation", default=True)
     bpy.types.Scene.sim_pt_use_location = BoolProperty(name="Use Location", default=True)
@@ -33,7 +46,7 @@ def register_properties():
     bpy.types.Scene.sim_pt_selected_preset = EnumProperty(
         name="Preset",
         description="Select a preset to load",
-        items=lambda self, context: [(f, f, "") for f in os.listdir(context.scene.sim_pt_presets_path) if f.endswith('.json')] if os.path.exists(context.scene.sim_pt_presets_path) else []
+        items=_sim_pt_preset_items
     )
 
 
@@ -47,4 +60,3 @@ def unregister_properties():
     del bpy.types.Scene.sim_pt_presets_expanded
     del bpy.types.Scene.sim_pt_selected_armature
     del bpy.types.Scene.sim_pt_selected_preset
-
