@@ -60,27 +60,6 @@ It appears in:
 
 ## Installation
 
-### 1) Create the ZIP correctly
-
-You must zip the **add-on folder**, not the individual files.
-
-Correct structure:
-
-```text
-my_addon.zip
-└── my_addon/
-    ├── __init__.py
-    ├── constants.py
-    ├── props_types.py
-    ├── core_apply.py
-    ├── scene_props.py
-    ├── operators_pose.py
-    ├── operators_io.py
-    ├── operators_progress.py
-    ├── ui_panel.py
-    └── LICENSE
-```
-
 ### 2) Install in Blender
 
 1. **Edit → Preferences → Add-ons**
