@@ -6,6 +6,20 @@ from bpy.props import IntProperty, StringProperty  # type: ignore[import-not-fou
 from .core_apply import get_mirror_bone_name
 
 
+def _pose_bone_is_selected(pose_bone):
+    try:
+        return pose_bone.select
+    except AttributeError:
+        return pose_bone.bone.select
+
+
+def _pose_bone_set_selected(pose_bone, value):
+    try:
+        pose_bone.select = value
+    except AttributeError:
+        pose_bone.bone.select = value
+
+
 class PT_OT_UpdatePose(bpy.types.Operator):
     bl_idname = "pt.update_pose"
     bl_label = "Update Pose"
@@ -30,7 +44,7 @@ class PT_OT_UpdatePose(bpy.types.Operator):
                 return {'CANCELLED'}
         
         pose = armature.data.sim_pt_poses[self.pose_index]
-        selected_bones = [pose_bone for pose_bone in armature.pose.bones if pose_bone.bone.select]
+        selected_bones = [pose_bone for pose_bone in armature.pose.bones if _pose_bone_is_selected(pose_bone)]
         if not selected_bones:
             self.report({'ERROR'}, "Select at least one bone to update the pose")
             if current_mode != armature.mode:
@@ -112,7 +126,7 @@ class PT_OT_SelectPoseBones(bpy.types.Operator):
                 return {'CANCELLED'}
         
         for bone in armature.pose.bones:
-            bone.bone.select = False
+            _pose_bone_set_selected(bone, False)
         mirror_pose = pose.is_mirrored
         debug_info = []
         for bone_data in pose.bone_poses:
@@ -122,12 +136,12 @@ class PT_OT_SelectPoseBones(bpy.types.Operator):
             if mirror_pose:
                 mirror_name = get_mirror_bone_name(bone_data.bone_name)
                 if mirror_name and mirror_name in armature.pose.bones:
-                    armature.pose.bones[mirror_name].bone.select = True
+                    _pose_bone_set_selected(armature.pose.bones[mirror_name], True)
                     debug_info.append(f"Selected mirrored: {bone_data.bone_name} -> {mirror_name}")
                 else:
                     debug_info.append(f"No mirror for {bone_data.bone_name}: mirror_name={mirror_name}")
             else:
-                armature.pose.bones[bone_data.bone_name].bone.select = True
+                _pose_bone_set_selected(armature.pose.bones[bone_data.bone_name], True)
                 debug_info.append(f"Selected original: {bone_data.bone_name}")
         
         bpy.context.view_layer.update()
@@ -211,7 +225,7 @@ class PT_OT_RecordPose(bpy.types.Operator):
                 self.report({'ERROR'}, "Failed to switch to Pose mode")
                 return {'CANCELLED'}
         
-        selected_bones = [pose_bone for pose_bone in armature.pose.bones if pose_bone.bone.select]
+        selected_bones = [pose_bone for pose_bone in armature.pose.bones if _pose_bone_is_selected(pose_bone)]
         if not selected_bones:
             self.report({'ERROR'}, "Select at least one bone")
             if current_mode != armature.mode:

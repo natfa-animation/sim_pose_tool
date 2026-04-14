@@ -2,6 +2,13 @@ import bpy  # type: ignore[import-not-found]
 from mathutils import Euler, Quaternion, Vector  # type: ignore[import-not-found]
 
 
+def _pose_bone_is_selected(pose_bone):
+    try:
+        return pose_bone.select
+    except AttributeError:
+        return pose_bone.bone.select
+
+
 def get_mirror_bone_name(bone_name):
     bone_name_lower = bone_name.lower()
     if bone_name_lower.endswith('_left'):
@@ -34,7 +41,7 @@ def update_pose(pose, context):
     
     mirror_pose = pose.is_mirrored
     apply_to_all = context.scene.sim_pt_apply_to_all_bones
-    selected_bones = {pose_bone.name for pose_bone in armature.pose.bones if pose_bone.bone.select}
+    selected_bones = {pose_bone.name for pose_bone in armature.pose.bones if _pose_bone_is_selected(pose_bone)}
     
     target_bones = []
     debug_info = []
