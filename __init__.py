@@ -1,5 +1,6 @@
 bl_info = {
     "name": "SIM posetool",
+    "author": "Sokerov",
     "version": (1, 27),
     "blender": (4, 3, 2),
     "category": "SIM anima",
@@ -125,4 +126,3 @@ def unregister():
     bpy.utils.unregister_class(PTPoseGroup)
     bpy.utils.unregister_class(PTPoseItem)
     bpy.utils.unregister_class(PTBonePoseData)
-
