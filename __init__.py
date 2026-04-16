@@ -29,6 +29,8 @@ from .operators_pose import (
     PT_OT_UpdatePose,
 )
 from .operators_progress import (
+    PT_OT_CancelProgressPreview,
+    PT_OT_ConfirmProgressPreview,
     PT_OT_ResetProgress,
     PT_OT_SetProgress_Minus01,
     PT_OT_SetProgress_Minus025,
@@ -95,6 +97,8 @@ CLASSES = (
     PT_OT_SetProgress_Plus01,
     PT_OT_SetProgress_Plus025,
     PT_OT_SetProgress_Plus1,
+    PT_OT_ConfirmProgressPreview,
+    PT_OT_CancelProgressPreview,
 )
 
 

@@ -98,12 +98,6 @@ class PTPosePanel(bpy.types.Panel):
         row.operator("pt.delete_pose", text="", icon='TRASH').pose_index = pose_index
         row.operator("pt.duplicate_pose", text="", icon='DUPLICATE').pose_index = pose_index
         row = box.row(align=True)
-        row.operator("pt.reset_progress", text="", icon='FILE_REFRESH').pose_index = pose_index
-        row.operator("pt.set_progress_minus1", text="-1").pose_index = pose_index
-        row.operator("pt.set_progress_minus025", text="-0.25").pose_index = pose_index
-        row.operator("pt.set_progress_minus01", text="-0.1").pose_index = pose_index
-        row.separator()
-        row.operator("pt.set_progress_plus01", text="+0.1").pose_index = pose_index
-        row.operator("pt.set_progress_plus025", text="+0.25").pose_index = pose_index
-        row.operator("pt.set_progress_plus1", text="+1").pose_index = pose_index
-
+        row.prop(pose, "preview_progress", text="Progress", slider=True)
+        row.operator("pt.confirm_progress_preview", text="", icon='CHECKMARK').pose_index = pose_index
+        row.operator("pt.cancel_progress_preview", text="", icon='CANCEL').pose_index = pose_index

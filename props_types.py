@@ -8,7 +8,7 @@ from bpy.props import (  # type: ignore[import-not-found]
     StringProperty,
 )
 
-from .core_apply import update_pose
+from .core_apply import preview_pose_progress, update_pose
 
 
 class PTBonePoseData(bpy.types.PropertyGroup):
@@ -68,6 +68,7 @@ class PTPoseItem(bpy.types.PropertyGroup):
         name: str
         bone_poses: Any
         combined_progress: float
+        preview_progress: float
         is_active: bool
         is_relative: bool
         is_mirrored: bool
@@ -84,9 +85,16 @@ class PTPoseItem(bpy.types.PropertyGroup):
                 max=1.0,
                 update=lambda self, context: update_pose(self, context),
             ),
+            "preview_progress": FloatProperty(
+                name="Progress",
+                description="Preview pose progress before confirming",
+                default=0.1,
+                min=-1.0,
+                max=1.0,
+                update=lambda self, context: preview_pose_progress(self, context, self.preview_progress),
+            ),
             "is_active": BoolProperty(default=False),
             "is_relative": BoolProperty(default=False),
             "is_mirrored": BoolProperty(default=False),
             "group_name": StringProperty(name="Group", default=""),
         }
-

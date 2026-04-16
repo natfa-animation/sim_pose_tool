@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 import bpy  # type: ignore[import-not-found]
 from bpy.props import IntProperty  # type: ignore[import-not-found]
 
+from . import core_apply
 from .core_apply import update_pose
 
 
@@ -187,3 +188,46 @@ class PT_OT_ResetProgress(bpy.types.Operator):
             bpy.ops.ed.undo_push(message=f"Reset pose '{pose.name}' progress")
         return {'FINISHED'}
 
+
+class PT_OT_ConfirmProgressPreview(bpy.types.Operator):
+    bl_idname = "pt.confirm_progress_preview"
+    bl_label = "Confirm Preview"
+    bl_description = "Confirm the previewed progress value and apply it"
+    if TYPE_CHECKING:
+        pose_index: int
+    else:
+        __annotations__ = {"pose_index": IntProperty()}
+
+    def execute(self, context):
+        armature = context.scene.sim_pt_selected_armature if context.scene.sim_pt_selected_armature else context.active_object
+        if not armature or self.pose_index >= len(armature.data.sim_pt_poses):
+            self.report({'ERROR'}, "Invalid pose index or no armature selected")
+            return {'CANCELLED'}
+        pose = armature.data.sim_pt_poses[self.pose_index]
+        core_apply.clear_pose_preview()
+        pose.combined_progress = pose.preview_progress
+        return {'FINISHED'}
+
+
+class PT_OT_CancelProgressPreview(bpy.types.Operator):
+    bl_idname = "pt.cancel_progress_preview"
+    bl_label = "Cancel Preview"
+    bl_description = "Cancel the preview and restore the previous pose state"
+    if TYPE_CHECKING:
+        pose_index: int
+    else:
+        __annotations__ = {"pose_index": IntProperty()}
+
+    def execute(self, context):
+        armature = context.scene.sim_pt_selected_armature if context.scene.sim_pt_selected_armature else context.active_object
+        if not armature or self.pose_index >= len(armature.data.sim_pt_poses):
+            self.report({'ERROR'}, "Invalid pose index or no armature selected")
+            return {'CANCELLED'}
+        pose = armature.data.sim_pt_poses[self.pose_index]
+        core_apply.cancel_pose_preview(pose, context)
+        core_apply._PREVIEW_SUSPEND = True
+        try:
+            pose.preview_progress = pose.combined_progress
+        finally:
+            core_apply._PREVIEW_SUSPEND = False
+        return {'FINISHED'}

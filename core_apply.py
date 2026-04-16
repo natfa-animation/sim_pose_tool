@@ -1,12 +1,93 @@
 import bpy  # type: ignore[import-not-found]
 from mathutils import Euler, Quaternion, Vector  # type: ignore[import-not-found]
 
+_PREVIEW_SUSPEND = False
+_PREVIEW_SESSION = None
+
 
 def _pose_bone_is_selected(pose_bone):
     try:
         return pose_bone.select
     except AttributeError:
         return pose_bone.bone.select
+
+
+def _resolve_armature_from_context(context):
+    if not context or not getattr(context, "scene", None):
+        return None
+    return context.scene.sim_pt_selected_armature if context.scene.sim_pt_selected_armature else context.active_object
+
+
+def _capture_armature_pose_state(armature_obj):
+    state = {}
+    if not armature_obj or armature_obj.type != 'ARMATURE' or not getattr(armature_obj, "pose", None):
+        return state
+    for pose_bone in armature_obj.pose.bones:
+        state[pose_bone.name] = {
+            "location": pose_bone.location.copy(),
+            "rotation_mode": pose_bone.rotation_mode,
+            "rotation_quaternion": pose_bone.rotation_quaternion.copy(),
+            "rotation_euler": pose_bone.rotation_euler.copy(),
+            "rotation_axis_angle": tuple(pose_bone.rotation_axis_angle),
+            "scale": pose_bone.scale.copy(),
+        }
+    return state
+
+
+def _restore_armature_pose_state(armature_obj, state):
+    if not armature_obj or armature_obj.type != 'ARMATURE' or not getattr(armature_obj, "pose", None):
+        return
+    for bone_name, bone_state in state.items():
+        if bone_name not in armature_obj.pose.bones:
+            continue
+        pose_bone = armature_obj.pose.bones[bone_name]
+        pose_bone.rotation_mode = bone_state["rotation_mode"]
+        pose_bone.location = bone_state["location"]
+        pose_bone.rotation_quaternion = bone_state["rotation_quaternion"]
+        pose_bone.rotation_euler = bone_state["rotation_euler"]
+        pose_bone.rotation_axis_angle = bone_state["rotation_axis_angle"]
+        pose_bone.scale = bone_state["scale"]
+    armature_obj.update_tag()
+    bpy.context.view_layer.update()
+
+
+def preview_pose_progress(pose, context, progress_value):
+    global _PREVIEW_SESSION
+    if _PREVIEW_SUSPEND:
+        return
+    armature = _resolve_armature_from_context(context)
+    if not armature or armature.type != 'ARMATURE':
+        return
+    pose_ptr = pose.as_pointer() if hasattr(pose, "as_pointer") else None
+    session_key = (armature.name, pose_ptr)
+    if not _PREVIEW_SESSION or _PREVIEW_SESSION.get("key") != session_key:
+        _PREVIEW_SESSION = {
+            "key": session_key,
+            "armature_name": armature.name,
+            "pose_ptr": pose_ptr,
+            "state": _capture_armature_pose_state(armature),
+        }
+    update_pose(pose, context, progress_override=progress_value, insert_keyframes=False, push_undo=False)
+
+
+def cancel_pose_preview(pose, context):
+    global _PREVIEW_SESSION
+    armature = _resolve_armature_from_context(context)
+    if not _PREVIEW_SESSION:
+        return
+    if not armature or armature.name != _PREVIEW_SESSION.get("armature_name"):
+        armature_name = _PREVIEW_SESSION.get("armature_name")
+        armature = bpy.data.objects.get(armature_name) if armature_name else None
+    if not armature:
+        _PREVIEW_SESSION = None
+        return
+    _restore_armature_pose_state(armature, _PREVIEW_SESSION.get("state", {}))
+    _PREVIEW_SESSION = None
+
+
+def clear_pose_preview():
+    global _PREVIEW_SESSION
+    _PREVIEW_SESSION = None
 
 
 def get_mirror_bone_name(bone_name):
@@ -22,7 +103,7 @@ def get_mirror_bone_name(bone_name):
     return None
 
 
-def update_pose(pose, context):
+def update_pose(pose, context, *, progress_override=None, insert_keyframes=True, push_undo=True):
     if not context or not context.scene:
         return
     armature = context.scene.sim_pt_selected_armature if context.scene.sim_pt_selected_armature else context.active_object
@@ -81,7 +162,7 @@ def update_pose(pose, context):
     
     print(f"Applying pose '{pose.name}' to bones: {'; '.join(debug_info)}")
     
-    t = pose.combined_progress
+    t = progress_override if progress_override is not None else pose.combined_progress
     use_rotation = context.scene.sim_pt_use_rotation
     use_location = context.scene.sim_pt_use_location
     use_scale = context.scene.sim_pt_use_scale
@@ -108,7 +189,8 @@ def update_pose(pose, context):
                     identity_quat = Quaternion((1.0, 0.0, 0.0, 0.0))
                     delta_quat = identity_quat.slerp(relative_quat if t >= 0 else relative_quat.conjugated(), abs(t))
                     pose_bone.rotation_quaternion = current_quat @ delta_quat
-                    pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=current_frame)
+                    if insert_keyframes:
+                        pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=current_frame)
                 else:
                     current_euler = pose_bone.rotation_euler.copy()
                     relative_euler = Euler((bone_data.target_rotation_x,
@@ -122,7 +204,8 @@ def update_pose(pose, context):
                     pose_bone.rotation_euler = Euler((current_euler.x + delta_euler.x,
                                                       current_euler.y + delta_euler.y,
                                                       current_euler.z + delta_euler.z), bone_data.rotation_mode)
-                    pose_bone.keyframe_insert(data_path="rotation_euler", frame=current_frame)
+                    if insert_keyframes:
+                        pose_bone.keyframe_insert(data_path="rotation_euler", frame=current_frame)
             if use_location:
                 current_location = pose_bone.location.copy()
                 relative_location = Vector((bone_data.target_location_x,
@@ -134,7 +217,8 @@ def update_pose(pose, context):
                 pose_bone.location = Vector((current_location.x + delta_location.x,
                                              current_location.y + delta_location.y,
                                              current_location.z + delta_location.z))
-                pose_bone.keyframe_insert(data_path="location", frame=current_frame)
+                if insert_keyframes:
+                    pose_bone.keyframe_insert(data_path="location", frame=current_frame)
             if use_scale:
                 current_scale = pose_bone.scale.copy()
                 relative_scale = Vector((bone_data.target_scale_x,
@@ -148,7 +232,8 @@ def update_pose(pose, context):
                 pose_bone.scale = Vector((current_scale.x + delta_scale.x,
                                           current_scale.y + delta_scale.y,
                                           current_scale.z + delta_scale.z))
-                pose_bone.keyframe_insert(data_path="scale", frame=current_frame)
+                if insert_keyframes:
+                    pose_bone.keyframe_insert(data_path="scale", frame=current_frame)
         else:
             if use_rotation:
                 if bone_data.use_quaternion:
@@ -165,7 +250,8 @@ def update_pose(pose, context):
                     else:
                         t_local = t
                     pose_bone.rotation_quaternion = current_quat.slerp(target_quat, abs(t_local))
-                    pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=current_frame)
+                    if insert_keyframes:
+                        pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=current_frame)
                 else:
                     current_euler = pose_bone.rotation_euler.copy()
                     target_euler = Euler((bone_data.target_rotation_x,
@@ -182,7 +268,8 @@ def update_pose(pose, context):
                         t_local = t
                     interpolated_euler = current_euler.to_quaternion().slerp(target_euler.to_quaternion(), abs(t_local)).to_euler(bone_data.rotation_mode)
                     pose_bone.rotation_euler = interpolated_euler
-                    pose_bone.keyframe_insert(data_path="rotation_euler", frame=current_frame)
+                    if insert_keyframes:
+                        pose_bone.keyframe_insert(data_path="rotation_euler", frame=current_frame)
             if use_location:
                 current_location = pose_bone.location.copy()
                 target_location = Vector((bone_data.target_location_x,
@@ -196,7 +283,8 @@ def update_pose(pose, context):
                 else:
                     t_local = t
                 pose_bone.location = current_location.lerp(target_location, abs(t_local))
-                pose_bone.keyframe_insert(data_path="location", frame=current_frame)
+                if insert_keyframes:
+                    pose_bone.keyframe_insert(data_path="location", frame=current_frame)
             if use_scale:
                 current_scale = pose_bone.scale.copy()
                 target_scale = Vector((bone_data.target_scale_x,
@@ -216,12 +304,14 @@ def update_pose(pose, context):
                     adjusted_scale = safe_target_scale
                     t_local = t
                 pose_bone.scale = current_scale.lerp(adjusted_scale, abs(t_local))
-                pose_bone.keyframe_insert(data_path="scale", frame=current_frame)
+                if insert_keyframes:
+                    pose_bone.keyframe_insert(data_path="scale", frame=current_frame)
     
     armature.update_tag()
     bpy.context.view_layer.update()
     
-    bpy.ops.ed.undo_push(message=f"Pose '{pose.name}' progress set to {t}")
+    if push_undo:
+        bpy.ops.ed.undo_push(message=f"Pose '{pose.name}' progress set to {t}")
     
     if current_mode != armature.mode:
         try:
@@ -232,4 +322,3 @@ def update_pose(pose, context):
         context.view_layer.objects.active = original_active
     for obj in bpy.context.scene.objects:
         obj.select_set(obj in original_selected)
-
