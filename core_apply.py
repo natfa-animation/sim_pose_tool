@@ -204,8 +204,9 @@ def update_pose(pose, context, *, progress_override=None, insert_keyframes=True,
                                                 bone_data.target_quat_z))
                     if is_mirror:
                         relative_quat = Quaternion((relative_quat.w, relative_quat.x, -relative_quat.y, -relative_quat.z))
-                    identity_quat = Quaternion((1.0, 0.0, 0.0, 0.0))
-                    delta_quat = identity_quat.slerp(relative_quat if t >= 0 else relative_quat.conjugated(), abs(t))
+                    relative_quat = relative_quat.normalized()
+                    axis, angle = relative_quat.to_axis_angle()
+                    delta_quat = Quaternion(axis, angle * t)
                     pose_bone.rotation_quaternion = current_quat @ delta_quat
                     if insert_keyframes:
                         pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=current_frame)

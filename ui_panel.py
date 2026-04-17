@@ -1,6 +1,8 @@
 import bpy  # type: ignore[import-not-found]
 import os
 
+from . import core_apply
+
 class PTPosePanel(bpy.types.Panel):
     bl_label = "SIM posetool"
     bl_idname = "OBJECT_PT_pose_tool"
@@ -100,4 +102,9 @@ class PTPosePanel(bpy.types.Panel):
         row.operator("pt.delete_pose", text="", icon='TRASH').pose_index = pose_index
         row.operator("pt.duplicate_pose", text="", icon='DUPLICATE').pose_index = pose_index
         row = box.row(align=True)
-        row.operator("pt.adjust_pose_progress", text="Adjust Pose", icon='DRIVER').pose_index = pose_index
+        row.operator(
+            "pt.adjust_pose_progress",
+            text="Adjust Pose",
+            icon='DRIVER',
+            depress=core_apply.is_pose_preview_active(pose, context),
+        ).pose_index = pose_index

@@ -295,8 +295,7 @@ class PT_OT_AdjustPoseProgress(bpy.types.Operator):
             self._pose_ptr = None
         self._set_status(context, "Adjust Pose: drag to set -100..+100 (A) or beyond (+). LMB confirm, RMB/Esc cancel.")
         if self._area:
-            self._area.header_text_set("Adjust Pose: drag mouse to set 0–100, LMB confirm, RMB/ESC cancel")
-        self._set_status(context, "Adjust Pose: drag to set -100..+100 (A) or beyond (+). LMB confirm, RMB/Esc cancel.")
+            self._area.tag_redraw()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
@@ -328,6 +327,8 @@ class PT_OT_AdjustPoseProgress(bpy.types.Operator):
             self._value = value
             core_apply.preview_pose_progress(pose, context, self._value)
             self._set_status(context, f"Adjust Pose: {self._value:.1f}% (LMB confirm, RMB/Esc cancel)")
+            if self._area:
+                self._area.tag_redraw()
             return {'RUNNING_MODAL'}
         return {'RUNNING_MODAL'}
 
@@ -338,11 +339,16 @@ class PT_OT_AdjustPoseProgress(bpy.types.Operator):
             return
         pose = self._find_pose_by_pointer(armature, self._pose_ptr) if self._pose_ptr else None
         if not pose:
+            core_apply.clear_pose_preview()
             self._clear_status(context)
+            if self._area:
+                self._area.tag_redraw()
             return
         core_apply.cancel_pose_preview(pose, context)
         core_apply.update_pose(pose, context, progress_override=self._value / 100.0, insert_keyframes=True, push_undo=True)
         self._clear_status(context)
+        if self._area:
+            self._area.tag_redraw()
 
     def _cancel(self, context):
         armature = context.scene.sim_pt_selected_armature if context.scene.sim_pt_selected_armature else context.active_object
@@ -350,4 +356,8 @@ class PT_OT_AdjustPoseProgress(bpy.types.Operator):
             pose = self._find_pose_by_pointer(armature, self._pose_ptr) if self._pose_ptr else None
             if pose:
                 core_apply.cancel_pose_preview(pose, context)
+            else:
+                core_apply.clear_pose_preview()
         self._clear_status(context)
+        if self._area:
+            self._area.tag_redraw()
